@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "QUALIFY_SURVEY_CREATOR_FAPP_UAT": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 8080",
+      "launchBrowser": false
+    }
+  }
+}

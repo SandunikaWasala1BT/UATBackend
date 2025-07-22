@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36121.58 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QUALIFY-SURVEY-CREATOR-FAPP-UAT", "QUALIFY-SURVEY-CREATOR-FAPP-UAT\QUALIFY-SURVEY-CREATOR-FAPP-UAT.csproj", "{CD18BAED-7FDD-4B79-AD1C-8472FF34E554}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CD18BAED-7FDD-4B79-AD1C-8472FF34E554}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD18BAED-7FDD-4B79-AD1C-8472FF34E554}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD18BAED-7FDD-4B79-AD1C-8472FF34E554}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD18BAED-7FDD-4B79-AD1C-8472FF34E554}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {58D2D9D1-C7C6-4229-8AF9-17B7A0A02CFF}
+	EndGlobalSection
+EndGlobal
