@@ -84,7 +84,7 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.DataverseRespository
             {
                 if (_serviceClient.IsReady)
                 {
-                    var entity = await _serviceClient.RetrieveAsync("seer_surveys", Guid.Parse(surveyId), new ColumnSet("seer_json", "seer_originurl"));
+                    var entity = await _serviceClient.RetrieveAsync("seer_surveys", Guid.Parse(surveyId), new ColumnSet("seer_json", "seer_originurl", "seer_name"));
                     return entity;
                 }
                 else

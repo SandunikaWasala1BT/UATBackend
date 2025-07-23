@@ -67,7 +67,7 @@ public class SurveyJsFunctions
                 return new BadRequestObjectResult(new {Error="No scheme found"});
             }
             
-            return new OkObjectResult(new { content = entity["seer_json"], originUrl = entity["seer_originurl"]});
+            return new OkObjectResult(new { content = entity["seer_json"], originUrl = entity["seer_originurl"], name = entity["seer_name"] });
         }
         catch(Exception ex)
         {
