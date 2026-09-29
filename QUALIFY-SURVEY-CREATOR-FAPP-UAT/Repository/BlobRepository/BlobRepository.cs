@@ -39,11 +39,16 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                 string surveyNewOriginUrl = "https://survey-portal-uat-gxchbpcrc4fkbze3.uksouth-01.azurewebsites.net/" + request.FolderName;
                 string surveyId = "";
                 string originurl = "";
-                JObject surveyData = null;
+                string surveyJson = "";
+                string surveyTemplateJson = "";
+                string finalJson = "";
+
+                //geeting survey details
                 var getSurveyDetailsFetch = String.Format(@"<fetch top='1'>
                       <entity name='seer_surveys'>
                         <attribute name='seer_surveysid' />
                         <attribute name='seer_originurl' />
+                        <attribute name='seer_json' />
                         <filter>
                           <condition attribute='seer_neworiginurl' operator='eq' value='{0}'/>
                         </filter>
@@ -65,9 +70,40 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                         originurl = getSurveyDetail.Attributes["seer_originurl"].ToString();
 
                     }
+                    if (getSurveyDetail.Attributes.ContainsKey("seer_json"))
+                    {
+                        surveyJson = getSurveyDetail.Attributes["seer_json"].ToString();
+
+                    }
                 }
 
-                if (!string.IsNullOrEmpty(originurl))
+                //getting selected survey template details
+                var getSurveyTemplateDetailsFetch = String.Format(@"<fetch top='1'>
+                      <entity name='seer_surveytemplate'>
+                        <attribute name='seer_json' />
+                        <filter>
+                          <condition attribute='seer_surveytemplateid' operator='eq' value='{0}'/>
+                        </filter>
+                      </entity>
+                    </fetch>", new Guid (request.TemplateId));
+
+                var getSurveyTemplateDetails = _serviceClient.RetrieveMultiple(new FetchExpression(getSurveyTemplateDetailsFetch));
+
+
+                foreach (var getSurveyTemplateDetail in getSurveyTemplateDetails.Entities)
+                {
+                    if (getSurveyTemplateDetail.Attributes.ContainsKey("seer_json"))
+                    {
+                        surveyTemplateJson = getSurveyTemplateDetail.Attributes["seer_json"].ToString();
+
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(surveyJson))
+                {
+                    finalJson = surveyJson;
+                }
+                else if (!string.IsNullOrEmpty(originurl))
                 {
                     var SurveyFileUrl = originurl + "/Survey.json"; // Adjust the path accordingly
 
@@ -103,22 +139,25 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                                         string surveyContent = await response.Content.ReadAsStringAsync();
 
                                         // Deserialize and process survey content
-                                        surveyData = JObject.Parse(surveyContent);
+                                        JObject surveyData = JObject.Parse(surveyContent);
+                                        finalJson = surveyData.ToString();
                                     }
                                 }
                                 catch (Exception e)
                                 {
-
-                                    throw new Exception(e.Message);
+                                    finalJson = surveyTemplateJson;
                                 }
                             }
                         }
                     }
                     catch (Exception e)
                     {
-
-                        throw new Exception(e.Message);
+                        finalJson = surveyTemplateJson;
                     }
+                }
+                else
+                {
+                    finalJson = surveyTemplateJson;
                 }
 
                 //return Task.CompletedTask;
@@ -129,10 +168,9 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                     Entity surveyEntity = new Entity("seer_surveys", new Guid(surveyId));
 
                     surveyEntity["seer_bloburl"] = "https://gyde365qualifysurveyimg.blob.core.windows.net/userfunctions/" + request.FolderName + "/";
-                    if (surveyData != null)
-                    {
-                        surveyEntity["seer_json"] = surveyData.ToString();
-                    }
+                    
+                    surveyEntity["seer_json"] = finalJson;
+                    
                     //Upodate Entity
                     _serviceClient.Update(surveyEntity);
 
