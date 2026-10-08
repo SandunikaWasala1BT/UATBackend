@@ -1,6 +1,7 @@
 ﻿
 using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.PowerPlatform.Dataverse.Client;
@@ -11,6 +12,7 @@ using Newtonsoft.Json.Linq;
 using QUALIFY_SURVEY_CREATOR_FAPP_UAT.Models.DTOs;
 using System.ComponentModel;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 
 namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
 {
@@ -42,7 +44,7 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                 string surveyJson = "";
                 string surveyTemplateJson = "";
                 string finalJson = "";
-
+                string blobPath = "https://gyde365qualifysurveyimg.blob.core.windows.net/userfunctions/"+ request.FolderName + "/Images";
                 //geeting survey details
                 var getSurveyDetailsFetch = String.Format(@"<fetch top='1'>
                       <entity name='seer_surveys'>
@@ -125,23 +127,79 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                                 var jsonDataDorSurvey = JsonConvert.DeserializeObject<dynamic>(surveyFileContent);
                                 // Extract surveyId and assign it to a string variable
                                 string SurveyJSSurveyId = jsonDataDorSurvey["surveyId"].ToString();
-                                // Build the API URL with the extracted surveyId
-                                string apiUrl = $"https://api.surveyjs.io/public/Survey/getSurvey?surveyId={SurveyJSSurveyId}";
-
+                                
                                 try
                                 {
-                                    // Make an asynchronous GET request
-                                    var response = await httpClient.GetAsync(apiUrl);
+                                    JObject surveyScheme = await GetSurveyJsScheme(SurveyJSSurveyId);
 
-                                    if (response.IsSuccessStatusCode)
+                                    // 3. Process Logos
+                                    // Assume surveyScheme is a JObject from Newtonsoft.Json
+                                    if (surveyScheme["logo"] != null)
                                     {
-                                        // Read the response content
-                                        string surveyContent = await response.Content.ReadAsStringAsync();
+                                        var logo = surveyScheme["logo"];
 
-                                        // Deserialize and process survey content
-                                        JObject surveyData = JObject.Parse(surveyContent);
-                                        finalJson = surveyData.ToString();
+
+                                        // 1. Handle String Type (Single URL)
+                                        if (logo.Type == JTokenType.String)
+                                        {
+                                            string logoValue = logo.ToString();
+                                            // Regex to check for Base64 SVG (matches the PowerShell -match)
+                                            bool isBase64Img = Regex.IsMatch(logoValue, @"^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$");
+
+                                            if (!isBase64Img)
+                                            {
+                                                string fileName = $"{request.FolderName}-logo.png";
+                                                await UploadToBlob(logoValue, request.FolderName, fileName);
+
+                                                // Update the URL in the JSON object
+                                                surveyScheme["logo"] = $"{blobPath}/{fileName}";
+                                            }
+                                        }
+                                        // 2. Handle Object Type (Multiple logos like { "default": "...", "dark": "..." })
+                                        else if (logo.Type == JTokenType.Object)
+                                        {
+                                            var logoObject = (JObject)logo;
+                                            // Iterate through all properties (similar to PSObject.Members)
+                                            foreach (var property in logoObject.Properties())
+                                            {
+                                                string logoUrl = property.Value.ToString();
+                                                string fileName = $"{request.FolderName}-logo-{property.Name}.png";
+
+                                                await UploadToBlob(logoUrl, request.FolderName, fileName);
+
+                                                // Update the specific property value with the new Blob URL
+                                                property.Value = $"{blobPath}/{fileName}";
+                                            }
+                                        }
+
                                     }
+                                    
+                                    if (surveyScheme["logoWidth"] == null)
+                                    {
+                                        surveyScheme.Add("logoWidth", "300px");
+                                    }
+                                    else
+                                    {
+                                        //surveyScheme["logoWidth"] = "300px";
+                                        surveyScheme["logoWidth"] = surveyScheme["logoWidth"].ToString();
+                                    }
+
+                                    if (surveyScheme["logoHeight"] == null)
+                                    {
+                                        surveyScheme.Add("logoHeight", "auto");
+                                    }
+                                    else
+                                    {
+                                        //surveyScheme["logoWidth"] = "300px";
+                                        surveyScheme["logoHeight"] = surveyScheme["logoHeight"].ToString();
+                                    }
+
+                                    string jsonString = surveyScheme.ToString(Newtonsoft.Json.Formatting.None);
+                                    string pattern = @"src=\\?""/Content/Images/([^\\?""]+)\\?""";
+                                    string replacement = $"src=\\\"{blobPath}/$1\\\"";
+                                    jsonString = Regex.Replace(jsonString, pattern, replacement);
+                                    finalJson = jsonString;
+
                                 }
                                 catch (Exception e)
                                 {
@@ -205,5 +263,31 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                 throw new Exception(e.Message);
             }
         }
+
+        public async Task<JObject> GetSurveyJsScheme(string surveyId)
+        {
+            string uri = $"https://api.surveyjs.io/public/Survey/getSurvey?surveyId={surveyId}";
+            var response = await httpClient.GetAsync(uri);
+            response.EnsureSuccessStatusCode();
+            var content = await response.Content.ReadAsStringAsync();
+            return JObject.Parse(content);
+        }
+
+        public async System.Threading.Tasks.Task UploadToBlob(string url, string folderName, string fileName)
+        {
+            byte[] imageBytes = await httpClient.GetByteArrayAsync(url);
+            
+            string blobName = $"{folderName}/Images/{fileName}";
+            BlobClient blobClient = _surveyContainerClient.GetBlobClient(blobName);
+
+            using (var stream = new MemoryStream(imageBytes))
+            {
+                await blobClient.UploadAsync(stream, new BlobUploadOptions
+                {
+                    HttpHeaders = new BlobHttpHeaders { ContentType = "image/png" }
+                });
+            }
+        }
+
     }
 }
