@@ -40,17 +40,11 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                 }
                 string surveyNewOriginUrl = "https://survey-portal-uat-gxchbpcrc4fkbze3.uksouth-01.azurewebsites.net/" + request.FolderName;
                 string surveyId = "";
-                string originurl = "";
-                string surveyJson = "";
                 string surveyTemplateJson = "";
-                string finalJson = "";
-                string blobPath = "https://gyde365qualifysurveyimg.blob.core.windows.net/userfunctions/"+ request.FolderName + "/Images";
                 //geeting survey details
                 var getSurveyDetailsFetch = String.Format(@"<fetch top='1'>
                       <entity name='seer_surveys'>
                         <attribute name='seer_surveysid' />
-                        <attribute name='seer_originurl' />
-                        <attribute name='seer_json' />
                         <filter>
                           <condition attribute='seer_neworiginurl' operator='eq' value='{0}'/>
                         </filter>
@@ -65,16 +59,6 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                     if (getSurveyDetail.Attributes.ContainsKey("seer_surveysid"))
                     {
                         surveyId = getSurveyDetail.Attributes["seer_surveysid"].ToString();
-
-                    }
-                    if (getSurveyDetail.Attributes.ContainsKey("seer_originurl"))
-                    {
-                        originurl = getSurveyDetail.Attributes["seer_originurl"].ToString();
-
-                    }
-                    if (getSurveyDetail.Attributes.ContainsKey("seer_json"))
-                    {
-                        surveyJson = getSurveyDetail.Attributes["seer_json"].ToString();
 
                     }
                 }
@@ -101,122 +85,6 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
                     }
                 }
 
-                if (!string.IsNullOrEmpty(surveyJson))
-                {
-                    finalJson = surveyJson;
-                }
-                else if (!string.IsNullOrEmpty(originurl))
-                {
-                    var SurveyFileUrl = originurl + "/Survey.json"; // Adjust the path accordingly
-
-                    try
-                    {
-                        // FIX: Added 'await' here
-                        var SurveyFileContent = await httpClient.GetStringAsync(SurveyFileUrl);
-                        // 1. Send the HTTP GET request
-                        HttpResponseMessage SurveyFileContentResponse = await httpClient.GetAsync(SurveyFileUrl);
-
-                        // 2. Check if the response status code is successful (200-299 OK)
-                        if (SurveyFileContentResponse.IsSuccessStatusCode)
-                        {
-                            // 3. Read the JSON string content
-                            string surveyFileContent = await SurveyFileContentResponse.Content.ReadAsStringAsync();
-                            // 4. Validate that the content is not empty or whitespace
-                            if (!string.IsNullOrWhiteSpace(surveyFileContent))
-                            {
-                                var jsonDataDorSurvey = JsonConvert.DeserializeObject<dynamic>(surveyFileContent);
-                                // Extract surveyId and assign it to a string variable
-                                string SurveyJSSurveyId = jsonDataDorSurvey["surveyId"].ToString();
-                                
-                                try
-                                {
-                                    JObject surveyScheme = await GetSurveyJsScheme(SurveyJSSurveyId);
-
-                                    // 3. Process Logos
-                                    // Assume surveyScheme is a JObject from Newtonsoft.Json
-                                    if (surveyScheme["logo"] != null)
-                                    {
-                                        var logo = surveyScheme["logo"];
-
-
-                                        // 1. Handle String Type (Single URL)
-                                        if (logo.Type == JTokenType.String)
-                                        {
-                                            string logoValue = logo.ToString();
-                                            // Regex to check for Base64 SVG (matches the PowerShell -match)
-                                            bool isBase64Img = Regex.IsMatch(logoValue, @"^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$");
-
-                                            if (!isBase64Img)
-                                            {
-                                                string fileName = $"{request.FolderName}-logo.png";
-                                                await UploadToBlob(logoValue, request.FolderName, fileName);
-
-                                                // Update the URL in the JSON object
-                                                surveyScheme["logo"] = $"{blobPath}/{fileName}";
-                                            }
-                                        }
-                                        // 2. Handle Object Type (Multiple logos like { "default": "...", "dark": "..." })
-                                        else if (logo.Type == JTokenType.Object)
-                                        {
-                                            var logoObject = (JObject)logo;
-                                            // Iterate through all properties (similar to PSObject.Members)
-                                            foreach (var property in logoObject.Properties())
-                                            {
-                                                string logoUrl = property.Value.ToString();
-                                                string fileName = $"{request.FolderName}-logo-{property.Name}.png";
-
-                                                await UploadToBlob(logoUrl, request.FolderName, fileName);
-
-                                                // Update the specific property value with the new Blob URL
-                                                property.Value = $"{blobPath}/{fileName}";
-                                            }
-                                        }
-
-                                    }
-                                    
-                                    if (surveyScheme["logoWidth"] == null)
-                                    {
-                                        surveyScheme.Add("logoWidth", "300px");
-                                    }
-                                    else
-                                    {
-                                        //surveyScheme["logoWidth"] = "300px";
-                                        surveyScheme["logoWidth"] = surveyScheme["logoWidth"].ToString();
-                                    }
-
-                                    if (surveyScheme["logoHeight"] == null)
-                                    {
-                                        surveyScheme.Add("logoHeight", "auto");
-                                    }
-                                    else
-                                    {
-                                        //surveyScheme["logoWidth"] = "300px";
-                                        surveyScheme["logoHeight"] = surveyScheme["logoHeight"].ToString();
-                                    }
-
-                                    string jsonString = surveyScheme.ToString(Newtonsoft.Json.Formatting.None);
-                                    string pattern = @"src=\\?""/Content/Images/([^\\?""]+)\\?""";
-                                    string replacement = $"src=\\\"{blobPath}/$1\\\"";
-                                    jsonString = Regex.Replace(jsonString, pattern, replacement);
-                                    finalJson = jsonString;
-
-                                }
-                                catch (Exception e)
-                                {
-                                    finalJson = surveyTemplateJson;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        finalJson = surveyTemplateJson;
-                    }
-                }
-                else
-                {
-                    finalJson = surveyTemplateJson;
-                }
 
                 //return Task.CompletedTask;
 
@@ -227,7 +95,7 @@ namespace QUALIFY_SURVEY_CREATOR_FAPP_UAT.Repository.BlobRepository
 
                     surveyEntity["seer_bloburl"] = "https://gyde365qualifysurveyimg.blob.core.windows.net/userfunctions/" + request.FolderName + "/";
                     
-                    surveyEntity["seer_json"] = finalJson;
+                    surveyEntity["seer_json"] = surveyTemplateJson;
                     
                     //Upodate Entity
                     _serviceClient.Update(surveyEntity);
